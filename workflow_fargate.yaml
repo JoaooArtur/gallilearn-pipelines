@@ -1,0 +1,112 @@
+name: Workflow Fargate
+
+on:
+  workflow_call:
+    inputs:
+      path-terraform:
+        description: 'The path terraform passed from the caller workflow'
+        required: true
+        type: string
+      product:
+        description: 'The name of product passed from the caller workflow'
+        required: true
+        type: string
+      microservice:
+        description: 'The name of microservice passed from the caller workflow'
+        required: true
+        type: string
+      project:
+        description: 'The project passed from the caller workflow'
+        required: true
+        type: string
+      test:
+        description: 'The test path passed from the caller workflow'
+        required: true
+        type: string
+      staging-aws:
+        description: 'The staging acocunt id aws passed from the caller workflow'
+        required: true
+        type: string
+      production-aws:
+        description: 'The production acocunt id aws passed from the caller workflow'
+        required: true
+        type: string
+      destroy:
+        description: "The boolean destroy passed from the caller workflow"
+        type: boolean
+        default: false
+      hasEmail:
+        description: "The boolean hasEmail passed from the caller workflow"
+        type: boolean
+        default: false
+    secrets:
+      packages-token:
+        description: 'The packages token passed from the caller workflow'
+        required: true
+      codacy-api-token:
+        description: 'The codacy token passed from the caller workflow'
+        required: true
+
+concurrency:
+ group: ${{ github.workflow }}-${{ github.ref }}
+ cancel-in-progress: true
+
+jobs:
+  build:
+    if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
+    uses: ./.github/workflows/_build.yaml
+    with:
+      project: ./src/${{ inputs.project }}
+    secrets: inherit
+
+  test:
+    if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
+    needs: [ build ]
+    uses: ./.github/workflows/_test.yaml
+    with:
+      test: ./${{ inputs.test }}
+    secrets: inherit
+
+  terraform-plan:
+    if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') && (github.event.pull_request.base.ref == 'production' || github.event.pull_request.base.ref == 'staging') }}
+    needs: [ test ]
+    uses: ./.github/workflows/_terraform-plan.yaml
+    with:
+      path-terraform: ${{ inputs.path-terraform }}
+      staging-aws: ${{ inputs.staging-aws }}
+      production-aws: ${{ inputs.production-aws }}
+    secrets: inherit
+
+  terraform-apply:
+    if: ${{ github.event.pull_request.merged && (github.event.pull_request.base.ref == 'production' || github.event.pull_request.base.ref == 'staging') }}
+    uses: ./.github/workflows/_terraform-apply.yaml
+    with:
+      path-terraform: ${{ inputs.path-terraform }}
+      staging-aws: ${{ inputs.staging-aws }}
+      production-aws: ${{ inputs.production-aws }}
+      destroy: ${{ inputs.destroy }}
+    secrets: inherit
+
+  deploy:
+    if: ${{ inputs.destroy == false && (github.event.pull_request.merged && (github.event.pull_request.base.ref == 'production' || github.event.pull_request.base.ref == 'staging')) }}
+    needs: [ terraform-apply]
+    uses: ./.github/workflows/_deploy.yaml
+    with:
+      ecr-repository-name: ${{ needs.terraform-apply.outputs.ecr-repository-name }}
+      ecs-service-name: ${{ needs.terraform-apply.outputs.ecs-service-name }}
+      cluster-name: ${{ inputs.product }}
+      container-definition-json: ${{ needs.terraform-apply.outputs.container-definition-json }}
+      container-name: ${{ needs.terraform-apply.outputs.container-name }}
+      dockerfile-path: ./src/${{ inputs.project }}
+      staging-aws: ${{ inputs.staging-aws }}
+      production-aws: ${{ inputs.production-aws }}
+      product: ${{ inputs.product }}
+      microservice: ${{ inputs.microservice }}
+      hasEmail: ${{ inputs.hasEmail }}
+    secrets: inherit
+
+  dependabot-reviewer:
+    uses: ./.github/workflows/_dependabot_reviewer.yaml
+    
+  request-manual-approval:
+    uses: ./.github/workflows/_manual_approval.yaml

@@ -1,0 +1,74 @@
+name: _Template Test
+
+on:
+  workflow_call:
+    inputs:
+      test:
+        description: 'The *csproj test path passed from the caller workflow'
+        required: true
+        type: string
+        
+env:
+  NUGET_SOURCE: https://nuget.pkg.github.com/JoaooArtur/index.json
+  NUGET_USER: JoaooArtur
+  NUGET_PACKAGES_TOKEN: ${{ secrets.packages-token }}
+  
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          global-json-file: global.json
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget  
+
+      - name: Adding NuGet Credentials with an API Key
+        run: |
+          sed -i '/<\/packageSources>/ {
+            a\    <packageSourceCredentials>
+            a\    <JoaooArtur>
+            a\      <add key="Username" value="'"$NUGET_USER"'"/>
+            a\      <add key="ClearTextPassword" value="'"$NUGET_PACKAGES_TOKEN"'"/>
+            a\    </JoaooArtur>
+            a\    </packageSourceCredentials>
+          }' nuget.config
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.test }}
+        run: dotnet restore
+
+      - name: Test
+        working-directory: ${{ inputs.test }}
+        run: |
+          dotnet test --no-restore /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=./TestResults/Coverage/cobertura.xml
+
+      - name: Check if coverage file exists
+        run: |
+          if [[ ! -s "${{ inputs.test }}/TestResults/Coverage/cobertura.xml" ]]; then
+            echo "Coverage file does not exists or is empty. Skipping Codacy upload."
+            echo "upload=false" >> $GITHUB_OUTPUT
+          else
+            echo "upload=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run codacy-coverage-reporter
+        if: steps.check-coverage-file.outputs.upload == 'true'
+        uses: codacy/codacy-coverage-reporter-action@v1
+        with:
+          api-token: ${{ secrets.codacy-api-token }}
+          coverage-reports: ${{ inputs.test }}/TestResults/Coverage/cobertura.xml

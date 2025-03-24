@@ -1,0 +1,57 @@
+name: _Template Build
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: 'The *csproj project path passed from the caller workflow'
+        required: true
+        type: string
+
+env:
+  NUGET_SOURCE: https://nuget.pkg.github.com/JoaooArtur/index.json
+  NUGET_USER: JoaooArtur
+  NUGET_PACKAGES_TOKEN: ${{ secrets.packages-token }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          global-json-file: global.json
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget  
+        
+      - name: Adding NuGet Credentials with an API Key
+        run: |
+          sed -i '/<\/packageSources>/ {
+            a\    <packageSourceCredentials>
+            a\    <JoaooArtur>
+            a\      <add key="Username" value="'"$NUGET_USER"'"/>
+            a\      <add key="ClearTextPassword" value="'"$NUGET_PACKAGES_TOKEN"'"/>
+            a\    </JoaooArtur>
+            a\    </packageSourceCredentials>
+          }' nuget.config
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.project }}
+        run: dotnet restore
+
+      - name: Build
+        working-directory: ${{ inputs.project }}
+        run: dotnet build --configuration Release --no-restore
