@@ -19,9 +19,6 @@ on:
       packages-token:
         description: 'The packages token passed from the caller workflow'
         required: true
-      codacy-api-token:
-        description: 'The codacy api token passed from the caller workflow'
-        required: true
 
 concurrency:
  group: ${{ github.workflow }}-${{ github.ref }}
