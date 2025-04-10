@@ -9,8 +9,8 @@ on:
         type: string
 
 env:
-  NUGET_SOURCE: https://nuget.pkg.github.com/JoaooArtur/index.json
-  NUGET_USER: JoaooArtur
+  NUGET_SOURCE: https://nuget.pkg.github.com/twila-digital/index.json
+  NUGET_USER: twila-digital
   NUGET_PACKAGES_TOKEN: ${{ secrets.packages-token }}
 
 jobs:
@@ -22,15 +22,15 @@ jobs:
         os: [ ubuntu-latest ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
@@ -41,10 +41,10 @@ jobs:
         run: |
           sed -i '/<\/packageSources>/ {
             a\    <packageSourceCredentials>
-            a\    <JoaooArtur>
+            a\    <twila-digital>
             a\      <add key="Username" value="'"$NUGET_USER"'"/>
             a\      <add key="ClearTextPassword" value="'"$NUGET_PACKAGES_TOKEN"'"/>
-            a\    </JoaooArtur>
+            a\    </twila-digital>
             a\    </packageSourceCredentials>
           }' nuget.config
 

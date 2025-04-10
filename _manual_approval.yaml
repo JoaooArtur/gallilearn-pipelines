@@ -1,28 +1,69 @@
-name: _Dependabot reviewer
+name: _Manual Approval
 
 on:
   workflow_call:
+    inputs:
+      type-deploy:
+        description: 'The type of deploy passed from the caller workflow'
+        required: true
+        type: string
 
 permissions:
-  pull-requests: write
   contents: write
+  pull-requests: write
+  repository-projects: write
 
 jobs:
   request-manual-approval:
     name: Request Manual Approve
+    permissions: write-all
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest ]
     steps:
+      - name: Generate token
+        id: generate_token
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.app-id }}
+          private_key: ${{ secrets.app-private-key }}
+
+      - name: Set approvers
+        run: |
+          if [ "${BRANCH}" == "staging" ]; then
+            APPROVERS="BackEnd,Admin"
+          elif [ "${BRANCH}" == "production" ]; then
+            APPROVERS="Admin"
+          fi
+          echo "APPROVERS=$APPROVERS" >> $GITHUB_ENV
+        env:
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+
+      - name: Set initiator approver
+        run: |
+          if [ "${BRANCH}" == "staging" ]; then
+            IS_INITIATOR_APPROVER=true
+          elif [ "${BRANCH}" == "production" ]; then
+            IS_INITIATOR_APPROVER=false
+          fi
+          echo "IS_INITIATOR_APPROVER=$IS_INITIATOR_APPROVER" >> $GITHUB_ENV
+        env:
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+
       - name: Request approvals
         uses: trstringer/manual-approval@v1
         with:
-          secret: ${{secrets.GITHUB_TOKEN}}
-          approvers: matheus-delre
+          secret: ${{ steps.generate_token.outputs.token }}
+          approvers: ${{ env.APPROVERS }}
           minimum-approvals: 1
-          issue-title: "Deploying to prod from staging"
-          issue-body: "Please approve or deny the deployment to production"
-          exclude-workflow-initiator-as-approver: false
+          issue-title: "[${{env.TYPE_DEPLOY}}] - ${{env.ISSUE_TITLE}} from: ${{env.SOURCE_BRANCH}} to: ${{env.TARGET_BRANCH}}"
+          issue-body: "Please approve or deny the deployment"
+          exclude-workflow-initiator-as-approver: false #${{ env.IS_INITIATOR_APPROVER }}
           additional-approved-words: 'aprovado'
           additional-denied-words: 'negado'
+        env:
+          ISSUE_TITLE: ${{ github.event.pull_request.title }}
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+          TYPE_DEPLOY: ${{ inputs.type-deploy }}

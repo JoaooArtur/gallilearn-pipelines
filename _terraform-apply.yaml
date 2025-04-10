@@ -2,30 +2,17 @@ name: _Terraform Apply
 
 on:
   workflow_call:
-    outputs:
-      ecr-repository-name:
-        description: "The ecr repository name output"
-        value: ${{ jobs.terraform-apply.outputs.ecr-repository-name }}
-      ecs-service-name:
-        description: "The ecs service name output"
-        value: ${{ jobs.terraform-apply.outputs.ecs-service-name }}
-      container-definition-json:
-        description: "The ecs container definition in json format output"
-        value: ${{ jobs.terraform-apply.outputs.container-definition-json }}
-      container-name:
-        description: "The ecs container name output"
-        value: ${{ jobs.terraform-apply.outputs.container-name }}
     inputs:
-      path-terraform:
-        description: 'The path passed from the caller workflow'
-        required: true
-        type: string
       staging-aws:
         description: 'The staging acocunt id aws passed from the caller workflow'
         required: true
         type: string
       production-aws:
         description: 'The production acocunt id aws passed from the caller workflow'
+        required: true
+        type: string
+      service-name:
+        description: 'The name of service passed from the caller workflow'
         required: true
         type: string
       destroy:
@@ -44,11 +31,6 @@ jobs:
   terraform-apply:
     name: "Terraform Apply"
     runs-on: ${{ matrix.os }}
-    outputs:
-      ecr-repository-name: ${{ steps.output-terraform.outputs.ecr-repository-name }}
-      ecs-service-name: ${{ steps.output-terraform.outputs.ecs-service-name }}
-      container-definition-json: ${{ steps.output-terraform.outputs.container-definition-json }}
-      container-name: ${{ steps.output-terraform.outputs.container-name }}
     strategy:
       fail-fast: false
       matrix:
@@ -59,10 +41,10 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ inputs.path-terraform }}/terraform
+        working-directory: ./terraform/${{ inputs.service-name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Set role
         run: |
@@ -85,8 +67,8 @@ jobs:
       - name: Add terraform as submodule
         run: |
           git config --global credential.helper store
-          git submodule add https://${{ secrets.packages-token }}@github.com/JoaooArtur/gallilearn-terraform.git terraform/modules
-        working-directory: ${{ inputs.path-terraform }}
+          git submodule add https://${{ secrets.packages-token }}@github.com/Twila-Digital/twila-terraform.git terraform//${{ inputs.service-name }}/modules
+        working-directory: .
 
       - name: Setup - Terraform CLI
         uses: hashicorp/setup-terraform@v3
@@ -122,12 +104,3 @@ jobs:
           terraform apply -auto-approve -input=false -no-color $BRANCH-out.tfplan
         env:
           BRANCH: ${{ github.event.pull_request.base.ref }}
-          
-      - name: "Define output variables"
-        id: output-terraform
-        if: ${{ inputs.destroy == false }}
-        run: |
-          echo ecr-repository-name=$(terraform output ecr_repository_name | jq -r .) >> $GITHUB_OUTPUT
-          echo ecs-service-name=$(terraform output ecs_service_name | jq -r .) >> $GITHUB_OUTPUT
-          echo container-definition-json=$(terraform output container_definition_json | jq -r .) >> $GITHUB_OUTPUT
-          echo container-name=$(terraform output container_name | jq -r .) >> $GITHUB_OUTPUT

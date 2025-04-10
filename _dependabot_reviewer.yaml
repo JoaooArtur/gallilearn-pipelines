@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   review-dependabot-pr:
-    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'development' }}
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' && (github.event.pull_request.base.ref == 'development' ||  github.event.pull_request.base.ref == 'staging')}}
     name: Dependabot Review
     runs-on: ${{ matrix.os }}
     strategy:

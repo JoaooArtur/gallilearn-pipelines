@@ -3,16 +3,16 @@ name: _Terraform Plan
 on:
   workflow_call:
     inputs:
-      path-terraform:
-        description: 'The path passed from the caller workflow'
-        required: true
-        type: string
       staging-aws:
         description: 'The staging acocunt id aws passed from the caller workflow'
         required: true
         type: string
       production-aws:
         description: 'The production acocunt id aws passed from the caller workflow'
+        required: true
+        type: string
+      service-name:
+        description: 'The name of service passed from the caller workflow'
         required: true
         type: string
     secrets:
@@ -39,10 +39,10 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ${{ inputs.path-terraform }}/terraform
+        working-directory: ./terraform/${{ inputs.service-name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set role
         run: |
@@ -65,8 +65,8 @@ jobs:
       - name: Add terraform as submodule
         run: |
           git config --global credential.helper store
-          git submodule add https://${{ secrets.packages-token }}@github.com/JoaooArtur/gallilearn-terraform.git terraform/modules
-        working-directory: ${{ inputs.path-terraform }}
+          git submodule add https://${{ secrets.packages-token }}@github.com/Twila-Digital/twila-terraform.git terraform//${{ inputs.service-name }}/modules
+        working-directory: .
 
       - name: Setup - Terraform CLI
         uses: hashicorp/setup-terraform@v3

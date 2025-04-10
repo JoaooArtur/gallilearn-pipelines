@@ -11,36 +11,20 @@ on:
         description: 'The production acocunt id aws passed from the caller workflow'
         required: true
         type: string
-      ecr-repository-name:
-        description: 'The ecr repository name passed from the caller workflow'
-        required: true
-        type: string
-      ecs-service-name:
-        description: 'The ecs service name passed from the caller workflow'
-        required: true
-        type: string
-      cluster-name:
-        description: 'The ecs cluster name passed from the caller workflow'
-        required: true
-        type: string
-      container-definition-json:
-        description: 'The ecs container definition passed from the caller workflow'
-        required: true
-        type: string
-      container-name:
-        description: 'The ecs container name passed from the caller workflow'
-        required: true
-        type: string
-      dockerfile-path:
-        description: 'The path to the dockerfile passed from the caller workflow'
-        required: true
-        type: string
       product:
         description: 'The name of product passed from the caller workflow'
         required: true
         type: string
-      microservice:
-        description: 'The name of microservice passed from the caller workflow'
+      path:
+        description: 'The project path passed from the caller workflow'
+        required: true
+        type: string
+      project:
+        description: 'The project passed from the caller workflow'
+        required: true
+        type: string
+      service-name:
+        description: 'The name of service passed from the caller workflow'
         required: true
         type: string
       hasEmail:
@@ -54,7 +38,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  NUGET_USER: JoaooArtur
+  NUGET_USER: twila-digital
   NUGET_PACKAGES_TOKEN: ${{ secrets.packages-token }}
 
 jobs:
@@ -73,7 +57,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       
       - name: Set role
         run: |
@@ -102,25 +86,33 @@ jobs:
           PRODUCT: ${{ inputs.product }}
         run: |
           git config --global credential.helper store
-          git submodule add https://${{ secrets.packages-token }}@github.com/JoaooArtur/gallilearn-appsettings.git parameters
+          git submodule add https://${{ secrets.packages-token }}@github.com/Twila-Digital/twila-appsettings.git parameters
 
       - name: Set appsettings.json informations
         id: appsettings-info
         env:
-          MICROSERVICE: ${{ inputs.microservice }}
+          SERVICE_NAME: ${{ inputs.service-name }}
           BRANCH: ${{ github.event.pull_request.base.ref }}
           PRODUCT: ${{ inputs.product }}
         run: |
-          mv -f parameters/${{env.PRODUCT}}/${{env.MICROSERVICE}}/${{env.BRANCH}}/appsettings.json ${{ inputs.dockerfile-path }}
-       
+          mv -f parameters/${{env.PRODUCT}}/${{env.SERVICE_NAME}}/${{env.BRANCH}}/appsettings.json ${{ inputs.path }}/${{ inputs.project }}
+          
+      - name: Add email templates as submodule
+        if: ${{ inputs.hasEmail == true }}
+        env:
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git config --global credential.helper store
+          git submodule add -b ${{env.BRANCH}} https://${{ secrets.packages-token }}@github.com/Twila-Digital/twila-templates-emails.git emails
+          git submodule update --init --remote
+          
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
-          DOCKERFILE_PATH: ${{ inputs.dockerfile-path }}/Dockerfile
+          DOCKERFILE_PATH: ${{ inputs.path }}/${{ inputs.project }}/Dockerfile
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ inputs.ecr-repository-name }}
+          ECR_REPOSITORY: ${{ github.event.pull_request.base.ref }}-${{ inputs.service-name }}-ecr
           IMAGE_TAG: ${{ github.sha }}
-          CLUSTER_NAME: ${{ inputs.cluster-name }}
         run: |
           docker build -f ${{env.DOCKERFILE_PATH}} \
             --build-arg NUGET_USER=$NUGET_USER \
@@ -130,8 +122,11 @@ jobs:
           docker push ${{env.ECR_REGISTRY}}/${{env.ECR_REPOSITORY}}:${{env.IMAGE_TAG}}
 
       - name: Download task definition
+        env:
+          SERVICE_NAME: ${{ inputs.service-name }}
+          BRANCH: ${{ github.event.pull_request.base.ref }}
         run: |
-          aws ecs describe-task-definition --task-definition ${{ inputs.container-name }} --query taskDefinition | jq -r 'del(
+          aws ecs describe-task-definition --task-definition ${{env.BRANCH}}-${{env.SERVICE_NAME}} --query taskDefinition | jq -r 'del(
             .taskDefinitionArn,
             .requiresAttributes,
             .compatibilities,
@@ -148,21 +143,23 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ inputs.ecr-repository-name }}
+          SERVICE_NAME: ${{ inputs.service-name }}
+          BRANCH: ${{ github.event.pull_request.base.ref }}
+          ECR_REPOSITORY: ${{ github.event.pull_request.base.ref }}-${{ inputs.service-name }}-ecr
           IMAGE_TAG: ${{ github.sha }}
         with:
           task-definition: task-definition.json
-          container-name: ${{ inputs.container-name }}
+          container-name: ${{env.BRANCH}}-${{env.SERVICE_NAME}}
           image: ${{env.ECR_REGISTRY}}/${{env.ECR_REPOSITORY}}:${{env.IMAGE_TAG}}
       
       - name: Deploy Amazon ECS task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         env:
-          SERVICE_NAME: ${{ inputs.ecs-service-name }}
-          CLUSTER_NAME: ${{ inputs.cluster-name }}
+          SERVICE_NAME: ${{ inputs.service-name }}
+          CLUSTER_NAME: ${{ inputs.product }}
           BRANCH: ${{ github.event.pull_request.base.ref }}
         with:
             task-definition: ${{ steps.task-def.outputs.task-definition }}
-            service: ${{env.SERVICE_NAME}}
+            service: ${{env.BRANCH}}-${{env.SERVICE_NAME}}
             cluster: ${{env.BRANCH}}-${{env.CLUSTER_NAME}}
             wait-for-service-stability: true
