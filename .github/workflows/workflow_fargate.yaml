@@ -43,6 +43,9 @@ on:
       packages-token:
         description: 'The packages token passed from the caller workflow'
         required: true
+      CODECOV_TOKEN:
+        description: 'The code cov token passed from the caller workflow'
+        required: true
       app-id:
         description: 'The app id passed from the caller workflow'
         required: true
