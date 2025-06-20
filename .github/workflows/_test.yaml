@@ -9,9 +9,6 @@ on:
         type: string
         
 env:
-  NUGET_SOURCE: https://nuget.pkg.github.com/JoaooArtur/index.json
-  NUGET_USER: JoaooArtur
-  NUGET_PACKAGES_TOKEN: ${{ secrets.packages-token }}
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
 jobs:
@@ -37,17 +34,6 @@ jobs:
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
             ${{ runner.os }}-nuget  
-
-      - name: Adding NuGet Credentials with an API Key
-        run: |
-          sed -i '/<\/packageSources>/ {
-            a\    <packageSourceCredentials>
-            a\    <JoaooArtur>
-            a\      <add key="Username" value="'"$NUGET_USER"'"/>
-            a\      <add key="ClearTextPassword" value="'"$NUGET_PACKAGES_TOKEN"'"/>
-            a\    </JoaooArtur>
-            a\    </packageSourceCredentials>
-          }' nuget.config
 
       - name: Install dependencies
         working-directory: ${{ inputs.test }}
