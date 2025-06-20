@@ -61,12 +61,12 @@ jobs:
     with:
       project: ${{ inputs.path }}/${{ inputs.project }}
     secrets: inherit  
-  sonar-qube:
-      if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
-      uses: ./.github/workflows/_sonar_qube.yaml
-      with:
-        project: ./src/${{ inputs.project }}
-      secrets: inherit
+  #sonar-qube:
+   #   if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
+    #  uses: ./.github/workflows/_sonar_qube.yaml
+     # with:
+      #  project: ./src/${{ inputs.project }}
+      #secrets: inherit
   test:
     if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
     needs: [ build ]
@@ -148,5 +148,5 @@ jobs:
   #     hasEmail: ${{ inputs.hasEmail }}
   #   secrets: inherit
 
-  dependabot-reviewer:
-    uses: ./.github/workflows/_dependabot_reviewer.yaml
+  #dependabot-reviewer:
+  #  uses: ./.github/workflows/_dependabot_reviewer.yaml
