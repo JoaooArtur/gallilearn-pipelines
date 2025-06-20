@@ -12,7 +12,8 @@ env:
   NUGET_SOURCE: https://nuget.pkg.github.com/JoaooArtur/index.json
   NUGET_USER: JoaooArtur
   NUGET_PACKAGES_TOKEN: ${{ secrets.packages-token }}
-  
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
 jobs:
   test:
     name: Test
@@ -52,7 +53,18 @@ jobs:
         working-directory: ${{ inputs.test }}
         run: dotnet restore
 
-      - name: Test
+      - name: Run tests and collect coverage
         working-directory: ${{ inputs.test }}
         run: |
-          dotnet test --no-restore /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=./TestResults/Coverage/cobertura.xml
+          dotnet test --no-restore \
+            /p:CollectCoverage=true \
+            /p:CoverletOutputFormat=cobertura \
+            /p:CoverletOutput=./TestResults/Coverage/cobertura.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ${{ inputs.test }}/TestResults/Coverage/cobertura.xml
+          flags: unittests
+          name: codecov-coverage-report
