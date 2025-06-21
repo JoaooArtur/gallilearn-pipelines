@@ -7,6 +7,11 @@ on:
         description: 'The *csproj project path passed from the caller workflow'
         required: true
         type: string
+    secrets:  
+      SONAR_TOKEN:
+        description: 'The SonarQube token passed from the caller workflow'
+        required: true
+
 jobs:
   build:
     name: Build and analyze
@@ -16,34 +21,49 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'zulu' # Alternative distribution options are available.
-      - uses: actions/checkout@v4
+          distribution: 'zulu'  # Você pode mudar para temurin, adopt, etc.
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: Cache SonarQube Cloud packages
+          fetch-depth: 0  # Necessário para análise precisa do Sonar
+
+      - name: Cache SonarCloud packages
         uses: actions/cache@v4
         with:
           path: ~\sonar\cache
           key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-      - name: Cache SonarQube Cloud scanner
+          restore-keys: |
+            ${{ runner.os }}-sonar
+
+      - name: Cache SonarCloud scanner
         id: cache-sonar-scanner
         uses: actions/cache@v4
         with:
           path: .\.sonar\scanner
           key: ${{ runner.os }}-sonar-scanner
-          restore-keys: ${{ runner.os }}-sonar-scanner
-      - name: Install SonarQube Cloud scanner
+          restore-keys: |
+            ${{ runner.os }}-sonar-scanner
+
+      - name: Install SonarCloud scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
         shell: powershell
         run: |
-          New-Item -Path .\.sonar\scanner -ItemType Directory
+          New-Item -Path .\.sonar\scanner -ItemType Directory -Force
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
-      - name: Build and analyze
+
+      - name: Build and analyze with SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          .\.sonar\scanner\dotnet-sonarscanner begin /k:"JoaooArtur_galilearn-backend" /o:"joaooartur" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
-          dotnet build
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          .\.sonar\scanner\dotnet-sonarscanner begin `
+            /k:"JoaooArtur_galilearn-backend" `
+            /o:"joaooartur" `
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
+            /d:sonar.host.url="https://sonarcloud.io"
+          
+          dotnet build ${{ inputs.project }}
+
+          .\.sonar\scanner\dotnet-sonarscanner end `
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
