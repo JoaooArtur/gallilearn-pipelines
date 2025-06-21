@@ -50,7 +50,7 @@ jobs:
         
       - name: Importar Resource Group (ignorar falha se já existir)
         run: |
-          terraform import azurerm_resource_group.rg /subscriptions/001b430d-5995-44e9-aa06-0b25ccf361b0/resourceGroups/rg-galilearn || true
+          terraform import azurerm_resource_group.rg /subscriptions/001b430d-5995-44e9-aa06-0b25ccf361b0/resourceGroups/gallilearn || true
         working-directory: ./terraform
 
       - name: Terraform Apply
