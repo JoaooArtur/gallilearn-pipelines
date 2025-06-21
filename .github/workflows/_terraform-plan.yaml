@@ -11,19 +11,45 @@ on:
         description: 'The production acocunt id aws passed from the caller workflow'
         required: true
         type: string
-      service-name:
-        description: 'The name of service passed from the caller workflow'
-        required: true
-        type: string
     secrets:
-      packages-token:
-        description: 'The packages token passed from the caller workflow'
+      AZURE_CREDENTIALS:
+        description: 'The azure credentials passed from the caller workflow'
         required: true
 
 env:
   AWS_REGION: us-east-1
 
 jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Login no Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Login no Azure Container Registry (ACR)
+        run: az acr login --name acrgalilearn
+
+      - name: Build e Push da imagem Docker para o ACR
+        env:
+          DOCKERFILE_PATH: ${{ inputs.path }}/${{ inputs.project }}/Dockerfile
+        run: |
+          docker build -f ${{env.DOCKERFILE_PATH}} -t acrgalilearn.azurecr.io/galilearn-api:latest .
+          docker push acrgalilearn.azurecr.io/galilearn-api:latest
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
   terraform-plan:
     name: "Terraform Plan"
     runs-on: ${{ matrix.os }}
@@ -39,34 +65,18 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./terraform/${{ inputs.service-name }}
+        working-directory: ./terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set role
-        run: |
-          if [ "${BRANCH}" == "staging" ]; then
-            ROLE_TO_ASSUME="arn:aws:iam::${{ inputs.staging-aws }}:role/Github-Admin"
-          elif [ "${BRANCH}" == "production" ]; then
-            ROLE_TO_ASSUME="arn:aws:iam::${{ inputs.production-aws }}:role/Github-Admin"
-          fi
-          echo "ROLE_TO_ASSUME=$ROLE_TO_ASSUME" >> $GITHUB_ENV
-        env:
-          BRANCH: ${{ github.event.pull_request.base.ref }}
-
-      - name: Configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Login no Azure
+        uses: azure/login@v1
         with:
-          role-to-assume: ${{ env.ROLE_TO_ASSUME }}
-          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: ${{ env.AWS_REGION }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Add terraform as submodule
-        run: |
-          git config --global credential.helper store
-          git submodule add https://${{ secrets.packages-token }}@github.com/Twila-Digital/twila-terraform.git terraform//${{ inputs.service-name }}/modules
-        working-directory: .
+      - name: Login no Azure Container Registry (ACR)
+        run: az acr login --name acrgalilearn
 
       - name: Setup - Terraform CLI
         uses: hashicorp/setup-terraform@v3
@@ -77,7 +87,7 @@ jobs:
       - name: "Run - Terraform Init"
         id: init
         run: |
-          terraform init -backend=true -backend-config="config/$BRANCH/backend.hcl"
+          terraform init
         env:
           BRANCH: ${{ github.event.pull_request.base.ref }}
 
@@ -89,7 +99,7 @@ jobs:
       - name: "Run - Terraform Plan"
         id: plan
         run: |
-          terraform plan -compact-warnings -no-color -var-file="config/$BRANCH/terraform.tfvars" -out $BRANCH-out.tfplan
+          terraform plan -compact-warnings -no-color -out $BRANCH-out.tfplan
         env:
           BRANCH: ${{ github.event.pull_request.base.ref }}
 

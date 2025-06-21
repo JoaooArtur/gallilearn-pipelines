@@ -3,22 +3,6 @@ name: Workflow Fargate
 on:
   workflow_call:
     inputs:
-      staging-aws:
-        description: 'The staging acocunt id aws passed from the caller workflow'
-        required: true
-        type: string
-      production-aws:
-        description: 'The production acocunt id aws passed from the caller workflow'
-        required: true
-        type: string
-      product:
-        description: 'The name of product passed from the caller workflow'
-        required: true
-        type: string
-      service-name:
-        description: 'The name of service passed from the caller workflow'
-        required: true
-        type: string
       path:
         description: 'The project path passed from the caller workflow'
         required: true
@@ -31,29 +15,15 @@ on:
         description: 'The test path passed from the caller workflow'
         required: true
         type: string
-      destroy:
-        description: "The boolean destroy passed from the caller workflow"
-        type: boolean
-        default: false
-      hasEmail:
-        description: "The boolean hasEmail passed from the caller workflow"
-        type: boolean
-        default: false
     secrets:
-      packages-token:
-        description: 'The packages token passed from the caller workflow'
-        required: true
       SONAR_TOKEN:
         description: 'The Sonar Qube token passed from the caller workflow'
         required: true
       CODECOV_TOKEN:
         description: 'The code cov token passed from the caller workflow'
         required: true
-      app-id:
-        description: 'The app id passed from the caller workflow'
-        required: true
-      app-private-key:
-        description: 'The app private key passed from the caller workflow'
+      AZURE_CREDENTIALS:
+        description: 'The azure credentials passed from the caller workflow'
         required: true
         
 concurrency:
@@ -67,12 +37,6 @@ jobs:
     with:
       project: ${{ inputs.path }}/${{ inputs.project }}
     secrets: inherit  
-  #sonar-qube:
-   #   if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
-    #  uses: ./.github/workflows/_sonar_qube.yaml
-     # with:
-      #  project: ./src/${{ inputs.project }}
-      #secrets: inherit
   test:
     if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
     needs: [ build ]
@@ -88,78 +52,20 @@ jobs:
       project: ${{ inputs.path }}/${{ inputs.project }}
     secrets: inherit
 
-  # terraform-plan:
-  #   needs: [ test ]
-  #   if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
-  #   uses: ./.github/workflows/_terraform-plan.yaml
-  #   with:
-  #     staging-aws: ${{ inputs.staging-aws }}
-  #     service-name: ${{ inputs.service-name }}
-  #     production-aws: ${{ inputs.production-aws }}
-  #   secrets: inherit
+  terraform-plan:
+    needs: [ test ]
+    if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
+    uses: ./.github/workflows/_terraform-plan.yaml
+    with:
+      staging-aws: ${{ inputs.staging-aws }}
+      service-name: ${{ inputs.service-name }}
+      production-aws: ${{ inputs.production-aws }}
+    secrets: inherit
 
-  # request-manual-approval-terraform:
-  #   if: ${{ github.event.pull_request.merged && (github.event.pull_request.base.ref == 'production') }}
-  #   uses: ./.github/workflows/_manual_approval.yaml
-  #   with:
-  #     type-deploy: "TERRAFORM"
-  #   secrets: inherit
-
-  # request-manual-approval-service:
-  #   if: ${{ github.event.pull_request.merged && (inputs.destroy == false && (github.event.pull_request.base.ref == 'production')) }}
-  #   uses: ./.github/workflows/_manual_approval.yaml
-  #   with:
-  #     type-deploy: "SERVICE"
-  #   secrets: inherit
-
-  # terraform-apply-staging:
-  #   if: ${{ github.event.pull_request.merged && (github.event.pull_request.base.ref == 'staging') }}
-  #   uses: ./.github/workflows/_terraform-apply.yaml
-  #   with:
-  #     staging-aws: ${{ inputs.staging-aws }}
-  #     production-aws: ${{ inputs.production-aws }}
-  #     service-name: ${{ inputs.service-name }}
-  #     destroy: ${{ inputs.destroy }}
-  #   secrets: inherit
-
-  # deploy-staging:
-  #   needs: [ terraform-apply-staging ]
-  #   if: ${{ inputs.destroy == false && (github.event.pull_request.merged && (github.event.pull_request.base.ref == 'staging')) }}
-  #   uses: ./.github/workflows/_deploy.yaml
-  #   with:
-  #     staging-aws: ${{ inputs.staging-aws }}
-  #     production-aws: ${{ inputs.production-aws }}
-  #     path: ${{ inputs.path }}
-  #     product: ${{ inputs.product }}
-  #     project: ${{ inputs.project }}
-  #     service-name: ${{ inputs.service-name }}
-  #     hasEmail: ${{ inputs.hasEmail }}
-  #   secrets: inherit
-
-  # terraform-apply:
-  #   needs: [ request-manual-approval-terraform ]
-  #   if: ${{ github.event.pull_request.merged && (github.event.pull_request.base.ref == 'production') }}
-  #   uses: ./.github/workflows/_terraform-apply.yaml
-  #   with:
-  #     staging-aws: ${{ inputs.staging-aws }}
-  #     production-aws: ${{ inputs.production-aws }}
-  #     service-name: ${{ inputs.service-name }}
-  #     destroy: ${{ inputs.destroy }}
-  #   secrets: inherit
-
-  # deploy:
-  #   needs: [ request-manual-approval-service ]
-  #   if: ${{ inputs.destroy == false && (github.event.pull_request.merged && (github.event.pull_request.base.ref == 'production')) }}
-  #   uses: ./.github/workflows/_deploy.yaml
-  #   with:
-  #     staging-aws: ${{ inputs.staging-aws }}
-  #     production-aws: ${{ inputs.production-aws }}
-  #     product: ${{ inputs.product }}
-  #     project: ${{ inputs.project }}
-  #     path: ${{ inputs.path }}
-  #     service-name: ${{ inputs.service-name }}
-  #     hasEmail: ${{ inputs.hasEmail }}
-  #   secrets: inherit
-
-  #dependabot-reviewer:
-  #  uses: ./.github/workflows/_dependabot_reviewer.yaml
+  deploy:
+    if: ${{ inputs.destroy == false && (github.event.pull_request.merged && (github.event.pull_request.base.ref == 'main')) }}
+    uses: ./.github/workflows/_deploy.yaml
+    with:
+      project: ${{ inputs.project }}
+      path: ${{ inputs.path }}
+    secrets: inherit
