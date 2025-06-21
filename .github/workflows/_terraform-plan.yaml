@@ -8,36 +8,6 @@ on:
         required: true
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout código
-        uses: actions/checkout@v3
-
-      - name: Login no Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Login no Azure Container Registry (ACR)
-        run: az acr login --name acrgalilearn
-
-      - name: Build e Push da imagem Docker para o ACR
-        env:
-          DOCKERFILE_PATH: ${{ inputs.path }}/${{ inputs.project }}/Dockerfile
-        run: |
-          docker build -f ${{env.DOCKERFILE_PATH}} -t acrgalilearn.azurecr.io/galilearn-api:latest .
-          docker push acrgalilearn.azurecr.io/galilearn-api:latest
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
   terraform-plan:
     name: "Terraform Plan"
     runs-on: ${{ matrix.os }}
