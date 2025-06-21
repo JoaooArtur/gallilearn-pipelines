@@ -2,22 +2,10 @@ name: _Terraform Plan
 
 on:
   workflow_call:
-    inputs:
-      staging-aws:
-        description: 'The staging acocunt id aws passed from the caller workflow'
-        required: true
-        type: string
-      production-aws:
-        description: 'The production acocunt id aws passed from the caller workflow'
-        required: true
-        type: string
     secrets:
       AZURE_CREDENTIALS:
         description: 'The azure credentials passed from the caller workflow'
         required: true
-
-env:
-  AWS_REGION: us-east-1
 
 jobs:
   deploy:

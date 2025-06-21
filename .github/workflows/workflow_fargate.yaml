@@ -56,10 +56,6 @@ jobs:
     needs: [ test ]
     if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
     uses: ./.github/workflows/_terraform-plan.yaml
-    with:
-      staging-aws: ${{ inputs.staging-aws }}
-      service-name: ${{ inputs.service-name }}
-      production-aws: ${{ inputs.production-aws }}
     secrets: inherit
 
   deploy:
