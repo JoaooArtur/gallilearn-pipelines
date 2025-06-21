@@ -37,7 +37,7 @@ jobs:
 
       - name: Build e Push da imagem Docker para o ACR
         env:
-          DOCKERFILE_PATH: ${{ inputs.path }}/${{ inputs.project }}/Dockerfile
+          DOCKERFILE_PATH: ${{ inputs.path }}/${{ inputs.project }}
         run: |
           docker build -f ${{env.DOCKERFILE_PATH}} -t acrgalilearn.azurecr.io/galilearn-api:latest .
           docker push acrgalilearn.azurecr.io/galilearn-api:latest
