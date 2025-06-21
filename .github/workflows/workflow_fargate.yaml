@@ -59,6 +59,7 @@ jobs:
     secrets: inherit
 
   deploy:
+    needs: [ terraform-plan ]
     if: ${{ (github.event.pull_request.merged && (github.event.pull_request.base.ref == 'main')) }}
     uses: ./.github/workflows/_deploy.yaml
     with:
