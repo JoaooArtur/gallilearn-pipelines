@@ -57,11 +57,3 @@ jobs:
     if: ${{ github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened') }}
     uses: ./.github/workflows/_terraform-plan.yaml
     secrets: inherit
-
-  deploy:
-    if: ${{ (github.event.pull_request.merged && (github.event.pull_request.base.ref == 'main')) }}
-    uses: ./.github/workflows/_deploy.yaml
-    with:
-      project: ${{ inputs.project }}
-      path: ${{ inputs.path }}
-    secrets: inherit
